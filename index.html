@@ -81,6 +81,27 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:20px 0;}
 ::-webkit-scrollbar{width:10px;height:10px;}
 ::-webkit-scrollbar-thumb{background:#2b3946;border-radius:6px;}
 .helptext{font-size:11px;color:var(--muted);margin-top:2px;}
+tbody tr.clickable{cursor:pointer;}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(5,9,13,.72);z-index:100;align-items:center;justify-content:center;padding:20px;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:14px;max-width:560px;width:100%;max-height:86vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--panel);}
+.modal-header h2{margin:0;font-size:20px;color:var(--accent2);}
+.modal-header .close-btn{background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:4px 8px;}
+.modal-header .close-btn:hover{color:var(--text);}
+.modal-body{padding:20px 22px;}
+.spec-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;margin-bottom:18px;}
+.spec-item{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
+.spec-item .k{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px;}
+.spec-item .v{font-size:16px;font-weight:700;color:var(--text);}
+.spec-item.full{grid-column:1/-1;}
+.xref-section{border-top:1px solid var(--border);padding-top:16px;margin-top:4px;}
+.xref-section h3{margin:0 0 10px;font-size:14px;color:var(--text);}
+.xref-table{width:100%;border-collapse:collapse;}
+.xref-table td{padding:7px 8px;border-bottom:1px solid #1b2733;font-size:13px;}
+.xref-table td.brand{color:var(--muted);width:110px;}
+.xref-note{background:#241c10;border:1px solid #493a1a;color:#f0c674;border-radius:8px;padding:12px 14px;font-size:12.5px;line-height:1.5;margin-top:12px;}
+
 body.hide-price .price-cell, body.hide-price #priceHeader{display:none;}
 </style>
 </head>
@@ -157,6 +178,7 @@ body.hide-price .price-cell, body.hide-price #priceHeader{display:none;}
         <th data-key="shaft_dec">Shaft Size (I.D.)</th>
         <th data-key="width">Width</th>
         <th data-key="type">Type</th>
+        <th>National #</th>
         <th data-key="price" id="priceHeader">Price Ea.</th>
       </tr>
     </thead>
@@ -179,6 +201,16 @@ body.hide-price .price-cell, body.hide-price #priceHeader{display:none;}
     </div>
   </div>
   <footer>Data digitized from Baum Hydraulics Corporation SKF / Chicago Rawhide Oil Seal catalog pages R13&ndash;R23. Prices subject to change without notice. 1-800-228-9222</footer>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">Seal Details</h2>
+      <button class="close-btn" id="modalClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
 </div>
 
 <script>
@@ -261,6 +293,7 @@ const DATA = [{"no":"2450","seq":"305700","price":4.48,"od":".499","width":".188
 
 
   let sortKey = null, sortDir = 1;
+  let lastRenderedRows = [];
 
   function fmtPrice(p){
     return (p===null||p===undefined) ? '<span class="na">&ndash;</span>' : '<span class="price">$'+p.toFixed(2)+'</span>';
@@ -275,24 +308,27 @@ const DATA = [{"no":"2450","seq":"305700","price":4.48,"od":".499","width":".188
   function render(rows){
     resultCount.innerHTML = 'Showing <b>'+rows.length+'</b> of <b>'+DATA.length+'</b> parts';
     if(rows.length===0){
-      tbody.innerHTML = '<tr><td colspan="6"><div class="empty">No matching seals found. Try widening your tolerance or checking the number.</div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7"><div class="empty">No matching seals found. Try widening your tolerance or checking the number.</div></td></tr>';
       return;
     }
     const maxRows = 500;
     let html = '';
-    rows.slice(0,maxRows).forEach(r=>{
-      html += '<tr>'+
+    const shown = rows.slice(0,maxRows);
+    lastRenderedRows = shown;
+    shown.forEach((r,idx)=>{
+      html += '<tr class="clickable" data-ridx="'+idx+'">'+
         '<td class="no-cell mono">'+r.no+'</td>'+
         '<td class="mono">'+fmtDim(r.od)+'</td>'+
         '<td class="mono">'+ (r.shaft || '<span class="na">&ndash;</span>') +'</td>'+
         '<td class="mono">'+fmtDim(r.width)+'</td>'+
         '<td><span class="typebadge">'+ (r.type && r.type!=='-----' ? r.type : '&ndash;') +'</span></td>'+
+        '<td class="mono na">&ndash;</td>'+
         '<td class="mono price-cell">'+fmtPrice(r.price)+'</td>'+
       '</tr>';
     });
     tbody.innerHTML = html;
     if(rows.length>maxRows){
-      tbody.innerHTML += '<tr><td colspan="6"><div class="empty">Showing first '+maxRows+' of '+rows.length+' results &mdash; refine your search to narrow further.</div></td></tr>';
+      tbody.innerHTML += '<tr><td colspan="7"><div class="empty">Showing first '+maxRows+' of '+rows.length+' results &mdash; refine your search to narrow further.</div></td></tr>';
     }
   }
 
@@ -384,6 +420,54 @@ const DATA = [{"no":"2450","seq":"305700","price":4.48,"od":".499","width":".188
   }
   priceToggle.addEventListener('change', updatePriceVisibility);
   updatePriceVisibility();
+
+  // ---- Detail modal ----
+  const modalOverlay = document.getElementById('modalOverlay');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  const modalClose = document.getElementById('modalClose');
+
+  function specItem(label, value, full){
+    return '<div class="spec-item'+(full?' full':'')+'"><div class="k">'+label+'</div><div class="v">'+value+'</div></div>';
+  }
+
+  function openModal(r){
+    modalTitle.textContent = 'Oil Seal #' + r.no;
+    let body = '<div class="spec-grid">';
+    body += specItem('Oil Seal Number', r.no);
+    body += specItem('Our Sequence Number', (r.seq && r.seq!=='-----') ? r.seq : '&ndash;');
+    body += specItem('Housing O.D.', r.od ? r.od+'&Prime;' : '&ndash;');
+    body += specItem('Shaft Size (I.D.)', r.shaft_dec!==null && r.shaft_dec!==undefined ? r.shaft_dec.toFixed(3)+'&Prime;' : '&ndash;');
+    body += specItem('Width', r.width ? r.width+'&Prime;' : '&ndash;');
+    body += specItem('Price Each', (r.price!==null && r.price!==undefined) ? '$'+r.price.toFixed(2) : '&ndash;');
+    body += specItem('Seal Type / Group', (r.type && r.type!=='-----') ? r.type : '&ndash;', true);
+    body += specItem('Shaft Size Family (catalog)', r.shaft ? r.shaft : '&ndash;', true);
+    body += '</div>';
+
+    body += '<div class="xref-section">';
+    body += '<h3>National Number</h3>';
+    body += '<div class="spec-item full"><div class="v na">&ndash;</div></div>';
+    body += '<div class="xref-note">This catalog only lists SKF / Chicago Rawhide numbers, so a National cross-reference isn&rsquo;t available here yet.</div>';
+    body += '</div>';
+
+    modalBody.innerHTML = body;
+    modalOverlay.classList.add('open');
+  }
+
+  function closeModal(){
+    modalOverlay.classList.remove('open');
+  }
+
+  document.getElementById('tbody').addEventListener('click', (e)=>{
+    const tr = e.target.closest('tr.clickable');
+    if(!tr) return;
+    const idx = parseInt(tr.getAttribute('data-ridx'), 10);
+    const r = lastRenderedRows[idx];
+    if(r) openModal(r);
+  });
+  modalClose.addEventListener('click', closeModal);
+  modalOverlay.addEventListener('click', (e)=>{ if(e.target === modalOverlay) closeModal(); });
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ closeModal(); } });
 
   render(DATA);
 })();
