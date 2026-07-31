@@ -93,26 +93,32 @@ body.hide-price .price-cell, body.hide-price #priceHeader{display:none;}
   <div class="searchbar">
     <div class="searchrow top-row">
       <div class="field" style="min-width:220px;">
-        <label class="big">Housing O.D. (in)</label>
-        <div class="tol-row">
-          <input id="q_od" type="number" step="0.001" placeholder="e.g. 1.375">
-          <span>&plusmn;</span>
-          <input id="q_od_tol" class="tol-input" type="number" step="0.001" value="0.005" title="tolerance">
-        </div>
-        <div class="helptext">tolerance defaults to &plusmn;.005&Prime;</div>
-      </div>
-      <div class="field" style="min-width:220px;">
         <label class="big">Shaft Size / I.D. (in)</label>
         <div class="tol-row">
-          <input id="q_id" type="number" step="0.001" placeholder="e.g. 0.625">
+          <select id="q_id" style="width:120px;">
+            <option value="">Any</option>
+          </select>
           <span>&plusmn;</span>
-          <input id="q_id_tol" class="tol-input" type="number" step="0.001" value="0.005" title="tolerance">
+          <input id="q_id_tol" class="tol-input" type="number" step="0.001" value="0.002" title="tolerance">
         </div>
-        <div class="helptext">tolerance defaults to &plusmn;.005&Prime;</div>
+        <div class="helptext">tolerance defaults to &plusmn;.002&Prime;</div>
+      </div>
+      <div class="field" style="min-width:220px;">
+        <label class="big">Housing O.D. (in)</label>
+        <div class="tol-row">
+          <select id="q_od" style="width:120px;">
+            <option value="">Any</option>
+          </select>
+          <span>&plusmn;</span>
+          <input id="q_od_tol" class="tol-input" type="number" step="0.001" value="0.002" title="tolerance">
+        </div>
+        <div class="helptext">tolerance defaults to &plusmn;.002&Prime;</div>
       </div>
       <div class="field" style="min-width:130px;">
         <label class="big">Width (in)</label>
-        <input id="q_width" type="text" placeholder="e.g. .250">
+        <select id="q_width">
+          <option value="">Any</option>
+        </select>
       </div>
     </div>
     <div class="searchrow">
@@ -191,6 +197,69 @@ const DATA = [{"no":"2450","seq":"305700","price":4.48,"od":".499","width":".188
     typeSel.appendChild(o);
   });
 
+  const odSel = document.getElementById('q_od');
+  const idSel = document.getElementById('q_id');
+  const widthSel = document.getElementById('q_width');
+
+  function matchesOd(r, val, tol){
+    if(val===''||val===null||isNaN(val)) return true;
+    return r.od_dec !== null && r.od_dec !== undefined && Math.abs(r.od_dec - val) <= tol + 1e-9;
+  }
+  function matchesId(r, val, tol){
+    if(val===''||val===null||isNaN(val)) return true;
+    return r.shaft_dec !== null && r.shaft_dec !== undefined && Math.abs(r.shaft_dec - val) <= tol + 1e-9;
+  }
+  function matchesWidth(r, val){
+    if(!val) return true;
+    return r.width === val;
+  }
+
+  function isNominalSixteenth(v){
+    const n = v / 0.0625;
+    return Math.abs(n - Math.round(n)) < 0.0008;
+  }
+  function fillSelect(selectEl, values, formatFn, currentVal, boldNominal){
+    const prev = currentVal !== undefined ? currentVal : selectEl.value;
+    selectEl.innerHTML = '';
+    const anyOpt = document.createElement('option');
+    anyOpt.value = ''; anyOpt.textContent = 'Any';
+    selectEl.appendChild(anyOpt);
+    values.forEach(v=>{
+      const o = document.createElement('option');
+      o.value = v; o.textContent = formatFn(v);
+      if(boldNominal && isNominalSixteenth(v)){
+        o.style.fontWeight = '700';
+      }
+      selectEl.appendChild(o);
+    });
+    const stillValid = values.some(v=> String(v) === String(prev));
+    selectEl.value = stillValid ? prev : '';
+  }
+
+  function updateDropdowns(){
+    const odVal = odSel.value === '' ? null : parseFloat(odSel.value);
+    const odTol = parseFloat(document.getElementById('q_od_tol').value) || 0.005;
+    const idVal = idSel.value === '' ? null : parseFloat(idSel.value);
+    const idTol = parseFloat(document.getElementById('q_id_tol').value) || 0.005;
+    const widthVal = widthSel.value;
+
+    const rowsForOd = DATA.filter(r => matchesId(r, idVal, idTol) && matchesWidth(r, widthVal));
+    const odVals = Array.from(new Set(rowsForOd.map(r=>r.od_dec).filter(v=>v!==null&&v!==undefined))).sort((a,b)=>a-b);
+    fillSelect(odSel, odVals, v=>v.toFixed(3)+'\u2033', odSel.value, true);
+
+    const rowsForId = DATA.filter(r => matchesOd(r, odVal, odTol) && matchesWidth(r, widthVal));
+    const idVals = Array.from(new Set(rowsForId.map(r=>r.shaft_dec).filter(v=>v!==null&&v!==undefined))).sort((a,b)=>a-b);
+    fillSelect(idSel, idVals, v=>v.toFixed(3)+'\u2033', idSel.value, true);
+
+    const rowsForWidth = DATA.filter(r => matchesOd(r, odVal, odTol) && matchesId(r, idVal, idTol));
+    const widthVals = Array.from(new Set(rowsForWidth.map(r=>r.width).filter(v=>v))).sort((a,b)=>parseFloat(a)-parseFloat(b));
+    fillSelect(widthSel, widthVals, v=>v+'\u2033', widthSel.value);
+  }
+
+  updateDropdowns();
+
+
+
   let sortKey = null, sortDir = 1;
 
   function fmtPrice(p){
@@ -256,7 +325,7 @@ const DATA = [{"no":"2450","seq":"305700","price":4.48,"od":".499","width":".188
       rows = rows.filter(r=> r.shaft_dec !== null && r.shaft_dec !== undefined && Math.abs(r.shaft_dec - qId) <= qIdTol + 1e-9);
     }
     if(qWidth){
-      rows = rows.filter(r=> (r.width||'').includes(qWidth));
+      rows = rows.filter(r=> r.width === qWidth);
     }
     if(qType){
       rows = rows.filter(r=> r.type === qType);
@@ -284,15 +353,22 @@ const DATA = [{"no":"2450","seq":"305700","price":4.48,"od":".499","width":".188
     document.getElementById('q_id').value='';
     document.getElementById('q_width').value='';
     document.getElementById('q_type').value='';
-    document.getElementById('q_od_tol').value='0.005';
-    document.getElementById('q_id_tol').value='0.005';
+    document.getElementById('q_od_tol').value='0.002';
+    document.getElementById('q_id_tol').value='0.002';
     sortKey=null;
+    updateDropdowns();
     applyFilters();
   });
-  ['q_no','q_od','q_id','q_width','q_od_tol','q_id_tol'].forEach(id=>{
+  ['q_no','q_od_tol','q_id_tol'].forEach(id=>{
     document.getElementById(id).addEventListener('keyup', (e)=>{ if(e.key==='Enter') applyFilters(); });
   });
   document.getElementById('q_type').addEventListener('change', applyFilters);
+  ['q_od','q_id','q_width'].forEach(id=>{
+    document.getElementById(id).addEventListener('change', ()=>{ updateDropdowns(); applyFilters(); });
+  });
+  ['q_od_tol','q_id_tol'].forEach(id=>{
+    document.getElementById(id).addEventListener('change', ()=>{ updateDropdowns(); applyFilters(); });
+  });
 
   document.querySelectorAll('thead th').forEach(th=>{
     th.addEventListener('click', ()=>{
